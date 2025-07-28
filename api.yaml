@@ -105,7 +105,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationResponse"
+                $ref: "#/components/schemas/ConversationWithAttachments"
         "400":
           description: Bad request
           content:
@@ -118,58 +118,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
-
-  /api/conversation/message:
-    post:
-      tags:
-        - Conversation
-      summary: Send message with attachments
-      description: Handles messages with audio files and file attachments
-      operationId: sendMessageWithAttachments
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                conversationId:
-                  type: string
-                  description: ID of the conversation
-                text:
-                  type: string
-                  description: Text message content
-                audioFile:
-                  type: string
-                  format: binary
-                  description: Audio file attachment
-                file_1:
-                  type: string
-                  format: binary
-                  description: Additional file attachment (up to multiple files with pattern file_*)
-              required:
-                - conversationId
-      responses:
-        "200":
-          description: Message processed successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessageResponse"
-        "400":
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ApiError"
-
-  /api/conversation/history:
     get:
       tags:
         - Conversation
@@ -209,6 +157,59 @@ paths:
                 $ref: "#/components/schemas/ConversationHistoryResponse"
         "500":
           description: Error fetching conversation history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+
+  /api/conversation/{id}/message:
+    post:
+      tags:
+        - Conversation
+      summary: Send message with attachments
+      description: Handles messages with audio files and file attachments
+      operationId: sendMessageWithAttachments
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: string
+                  description: ID of the conversation
+                text:
+                  type: string
+                  description: Text message content
+                audioFile:
+                  type: string
+                  format: binary
+                  description: Audio file attachment
+                file_1:
+                  type: string
+                  format: binary
+                  description: Additional file attachment (up to multiple files with pattern file_*)
+                lastMessage:
+                  type: string
+                  description: id of the last message in the conversation
+              required:
+                - conversationId
+      responses:
+        "200":
+          description: Message processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: Internal server error
           content:
             application/json:
               schema:
@@ -325,6 +326,9 @@ components:
     VoiceTranscriptionResponse:
       type: object
       properties:
+        transcribeId:
+          type: string
+          description: Unique, voice ID for the transcription
         text:
           type: string
           description: Transcribed text from audio
@@ -362,78 +366,21 @@ components:
           type: string
           description: Optional conversation ID for continuing existing conversation
           example: "conv_12345"
-        inputMode:
-          type: string
-          enum: [text, voice, file]
-          description: Mode of input used
-          example: text
-        metadata:
-          type: object
-          properties:
-            fileInfo:
-              type: object
-              properties:
-                name:
-                  type: string
-                type:
-                  type: string
-                size:
-                  type: number
-            voiceInfo:
-              type: object
-              properties:
-                duration:
-                  type: number
-                language:
-                  type: string
-      required:
-        - message
-
-    ConversationResponse:
-      type: object
-      properties:
-        id:
-          type: string
-          description: Response message ID
-          example: "msg_67890"
-        message:
-          type: string
-          description: AI response message
-          example: "I can help you schedule a meeting. Let me prepare the meeting details for your review."
-        intent:
-          type: string
-          enum: [conversation, email, schedule, clarification]
-          description: Detected intent from the user message
-          example: schedule
-        suggestions:
+        attachments:
           type: array
           items:
-            type: string
-          description: Suggested follow-up actions
-          example:
-            [
-              "Can you help me with something else?",
-              "Let me modify the details",
-              "This looks good, proceed",
-            ]
-        data:
-          oneOf:
-            - $ref: "#/components/schemas/EmailDraftData"
-            - $ref: "#/components/schemas/ScheduleData"
-          description: Additional data based on detected intent
-        conversationId:
-          type: string
-          description: Conversation ID
-          example: "conv_12345"
+            oneOf:
+              - $ref: "#/components/schemas/AudioFileInfo"
+              - $ref: "#/components/schemas/AttachmentInfo"
       required:
-        - id
         - message
-        - intent
-        - conversationId
-
     EmailDraftData:
       type: object
       properties:
+        type:
+          type: string
+          enum: [email]
+          example: email
         title:
           type: string
           example: "Draft Email"
@@ -464,6 +411,10 @@ components:
     ScheduleData:
       type: object
       properties:
+        type:
+          type: string
+          enum: [schedule]
+          example: schedule
         title:
           type: string
           example: "Team Meeting"
@@ -509,14 +460,17 @@ components:
         data:
           type: object
           properties:
+            conversationId:
+              type: string
+              example: "conv_456"
             userMessage:
               $ref: "#/components/schemas/UserMessage"
             aiResponse:
               $ref: "#/components/schemas/AIMessage"
-            conversation:
-              $ref: "#/components/schemas/ConversationWithAttachments"
             confirmation:
-              $ref: "#/components/schemas/ConfirmationData"
+              oneOf:
+                - $ref: "#/components/schemas/EmailDraftData"
+                - $ref: "#/components/schemas/ScheduleData"
       required:
         - success
         - message
@@ -574,6 +528,17 @@ components:
           type: string
           enum: [assistant]
           example: assistant
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested follow-up actions
+          example:
+            [
+              "Can you help me with something else?",
+              "Let me modify the details",
+              "This looks good, proceed",
+            ]
       required:
         - id
         - conversationId
@@ -585,6 +550,15 @@ components:
       type: object
       nullable: true
       properties:
+        id:
+          type: string
+          description: Unique ID for the audio transcription
+          example: "audio_123_transcribe"
+        url:
+          type: string
+          format: uri
+          description: URL of the audio file
+          example: "https://cdn.aimigo-agent.com/uploads/audio_123_recording.webm"
         name:
           type: string
           example: "audio_recording.webm"
@@ -615,6 +589,9 @@ components:
     AttachmentInfo:
       type: object
       properties:
+        fileId:
+          type: string
+          example: "file_12345"
         originalName:
           type: string
           example: "document.pdf"
@@ -674,6 +651,10 @@ components:
             oneOf:
               - $ref: "#/components/schemas/UserMessage"
               - $ref: "#/components/schemas/AIMessage"
+        confirmation:
+          oneOf:
+            - $ref: "#/components/schemas/EmailDraftData"
+            - $ref: "#/components/schemas/ScheduleData"
         createdAt:
           type: string
           format: date-time
@@ -736,6 +717,9 @@ components:
           type: string
           format: date-time
           example: "2025-07-27T12:00:00.000Z"
+        messageId:
+          type: string
+          example: "msg_12345"
       required:
         - id
         - title
