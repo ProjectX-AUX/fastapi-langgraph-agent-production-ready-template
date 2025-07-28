@@ -51,6 +51,29 @@ paths:
                 $ref: '#/components/schemas/Conversation'
         '404':
           description: Todo item not found
+
+  /transcribe:
+    post:
+    responses:
+      "201":
+        content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content: string
+
+  /update:
+    post:
+    responses:
+      "201":
+        content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: string
+        
 components:
   schemas:
     TodoItem:
@@ -70,11 +93,12 @@ components:
       required:
         - id
         - title
-    NewTodoItem:
+    Conversation:
       type: object
       properties:
-        title:
+        id:
           type: string
-          description: The title of the new todo item
+          description: conversation id
+        
       required:
         - title
